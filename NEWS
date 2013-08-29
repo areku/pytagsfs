@@ -1,0 +1,932 @@
+======================
+pytagsfs Release Notes
+======================
+
+.. contents::
+
+
+pytagsfs development version
+============================
+
+ * Fixed pytags utility crash with ``AttributeError`` when using the --format
+   option.  This has been severely broken for a while (probably since 0.8.0),
+   but the issue was only discovered recently.
+   (Forest Bond)
+
+ * Error handling for the pytags utility has changed subtley as a result of
+   ongoing work to make it useful for more than audio files.  In particular,
+   trying to print tag values for files not supported by mutagen will no
+   longer cause an error  Trying to write tag values to such files does
+   still cause an error.
+   (Forest Bond)
+
+ * The pytags utility now supports reading and writing meta-data using
+   any meta store implementation that pytagsfs itself supports.  Specific
+   implementations can be selected using the --metastores command-line
+   option, which is analogous to the pytagsfs "metastores" mount option.
+   Thanks to Raphaël Droz for the patch.
+   (Forest Bond)
+
+ * If adding an inotify watch triggers an ENOSPC error, pytagsfs logs a
+   message recommending that max_user_watches be increased.
+   (Forest Bond)
+
+ * The SourceTreeMonitor API has been changed such that errors are not silently
+   ignored.  Any external SourceTreeMonitor implementations must be updated to
+   use the new error handling conventions.  See the SourceTreeMonitor base class
+   docstrings for more information.
+   (Forest Bond)
+
+ * New metastore implementation ``pytagsfs.metastore.xattr_.XattrMetaStore``
+   has been added.  This adds support for storing tag values as extended
+   attributes in the source filesystem.
+   (Raphaël Droz)
+
+
+pytagsfs 0.9.2 2009-12-27
+=========================
+
+ * Fixed pytagsfs manpage references to format string variables "number",
+   "NUMBER".  The correct variable names are "tracknumber", "TRACKNUMBER".
+   Thanks to Sebastian Pipping for the report.
+   (Forest Bond)
+
+
+pytagsfs 0.9.2rc2 2009-12-06
+============================
+
+ * Added missing encode calls in SourceTree methods isreadable, issymlink,
+   lstat, and utime.
+   (Forest Bond)
+
+ * Fixed bad assumption in tests.blackbox that a subprocess failed if it
+   produced output on stderr.
+   (Forest Bond)
+
+ * Added dependencies for running test suite to README.
+   (Forest Bond)
+
+
+pytagsfs 0.9.2rc1 2009-12-05
+============================
+
+ * Fixed AttributeError on getattr due to missing Stat attributes and
+   interaction with python-fuse bugs.  The presence of this issue is dependent
+   on python-fuse version, but the implemented fix should be compatible with
+   many.  The exception would likely occur on the filesystem operation following
+   the getattr call due to python-fuse bugs.
+   
+   This bug could lead to data corruption if files are opened for writing, but
+   problems would likely be seen before that point.
+
+   (Forest Bond)
+
+ * Fixed AttributeError on open due to missing FileInfo attribute (a bug in
+   python-fuse).  The exception would likely occur on the filesystem operation
+   following the open call due to python-fuse bugs.
+   
+   This bug could lead to data corruption if files are opened for writing, but
+   problems would likely be seen before that point.
+
+   (Forest Bond)
+
+ * Fixed unmatched increment/decrement count for frozen paths.  This would
+   manifest itself as follows:
+   
+    - KeyErrors may be seen in the log.
+    - Writes may fail in situations where multiple processes are attempting to
+      write to the same file concurrently.
+    - A virtual path may persist after a file is modified such that the path
+      should change.
+
+   This could possibly lead to data corruption if the a virtual file is opened
+   for writing by more than one process simultaneously.  In that case,
+   inconsistent data is likely in the absence of this bug.
+
+   (Forest Bond)
+
+ * util/profile: Added benchmark read_all_concurrent.
+   (Forest Bond)
+
+ * ``TestLinesMetaStore`` was modified to support a data section.  All bytes
+   after the last newline character in the file are treated as arbitrary data.
+   (Forest Bond)
+
+ * util/profile: Files are now created with a data section of arbitrary size
+   that can be specified with command-line options --blocksize, --nblocks.
+   These default to 1024 and 200, respectively.
+   (Forest Bond)
+
+ * Implemented the beginnings of a token-style locking mechanism (this doesn't
+   appear to be widely used -- maybe I invented it).  At present, this
+   effectively implements a global lock such that most pytagsfs code need not be
+   thread safe, but will evolve to allow limited multithreading through
+   judicious token releases around blocking I/O.  This resolves serious
+   deadlocks resulting from locking calls scattered throughout pytagsfs code.
+
+   It is possible that these deadlocks could have resulted in data corruption
+   since the filesystem could have deadlocked with files opened for writing,
+   but only in situations where the filesystem was being accessed concurrently,
+   in which case a deadlock is likely before the user has a chance to open a
+   file for writing.
+
+   (Forest Bond)
+
+ * Removed a variety of locks that were rendered useless by the introduction of
+   token-style locking.
+   (Forest Bond)
+
+ * Extended token-style locking with the addition of tokens that protect
+   specific data structures.  This improves performance by exchanging the global
+   token for a secondary one around code sections that would cause a thread to
+   block on I/O.
+   (Forest Bond)
+
+ * Debug logging of filesystem operations no longer includes method arguments
+   or return values that are too large to justify logging them.  This improves
+   performance with debug logging enabled.
+   (Forest Bond)
+
+ * Introduced FUSE option max_readahead=0.  This has no impact on OS X because
+   MacFUSE-specific option noreadahead was already being used.
+   
+   Since the underlying source files can change at any time, no in-kernel
+   caching can be permitted.  Otherwise, reads may return old data.  This makes
+   read performance worse by a factor of about two on my machine (but
+   correctness is more important than performance by a factor of greater than
+   two ;).
+
+   The previous behavior could lead to data inconsistencies if a virtual file
+   and its corresponding real file were being written to simultaneously.
+   However, data inconsistencies would occur under those circumstances even in
+   the absence of this issue.
+
+   (Forest Bond)
+
+ * Symlinks in the source tree are now completely ignored.  Previously, they
+   were represented as virtual symlinks but readlink calls would fail.  In the
+   future, we'd like to follow symlinks and handle them correctly.
+   (Forest Bond)
+
+ * Fixed AttributeError when a file is opened for writing twice after being
+   either opened for reading and subsequently truncated or truncated and
+   subsequently opened for reading.  The second attempt to open the file for
+   writing would fail.  This bug could not cause data corruption.
+   (Forest Bond)
+
+
+pytagsfs 0.9.1 2009-10-18
+=========================
+
+ * Removed spurious log messages about late events from inotifyx source tree
+   monitor.  IN_IGNORED messages are always "late".
+   (Forest Bond)
+
+ * Support format string short key "%c" as an alias for "%{composer}".  Patch
+   by Michael Helmling.
+   (Forest Bond)
+
+ * Fixed DeprecationWarning: object.__init__() takes no parameters in
+   pytypes.py.
+   (Forest Bond)
+
+ * Fixed usage of deprecated os.popen2 in ``tests.blackbox`` that actually
+   caused deadlocks during testing on some systems.
+   (Forest Bond)
+
+
+pytagsfs 0.9.1rc1 2009-04-26
+============================
+
+ * Note: pyinotify has been dropped in favor of inotifyx, so this change is
+   no longer relevant.  I'll leave it for its historical value.
+   
+   Updated pyinotify source tree monitor to be compatible with new 0.8.6
+   pyinotify release.  This is getting ugly.  Thanks to Ritesh Raj Sarraf for
+   the report and patch.  Fixes #364586.
+
+   (Forest Bond)
+
+ * Dropped pyinotify in favor of inotifyx.  Fixes #364586 better.
+   Linux users should install inotifyx, available from
+   http://www.alittletooquiet.net/software/inotifyx/ .
+   (Forest Bond)
+
+
+pytagsfs 0.9.0 2009-03-05
+=========================
+
+ * Fixed test failures due to bad assumptions about source filesystems,
+   environment variables.  Thanks to "Tomtom".  Fixes #312999.
+   (Forest Bond)
+
+
+pytagsfs 0.9.0rc1 2009-01-26
+============================
+
+ * Note: The ctypes-based bindings mentioned here were replaced with
+   ``pytagsfs.fuselib``, a new FUSE layer based on the previous python-fuse
+   bindings.  This entry has been left for historical value.  See further
+   entries below.
+   
+   Moved to new FUSE library bindings based on fuse.py by Giorgos Verigakis.  A
+   modified version of this module now ships with pytagsfs as
+   ``pytagsfs.fuse``.  The previous dependency on external Python FUSE bindings
+   no longer exists, however, the ctypes module is required and is an external
+   dependency with Python 2.4.  Python 2.5 includes the ctypes module in the
+   standard library.
+
+   (Forest Bond)
+
+ * Fixed incorrect mtime, atime for files whose timestamps were updated while
+   they were opened for writing.  Previously, timestamps from the .pytagsfs.
+   file would be copied to the new source file after the file was closed.
+   (Forest Bond)
+
+ * Fixed incorrect st_ino, st_dev from fgetattr.  Previously, values for the
+   underlying source file were returned directly.  Now, these are adjusted
+   properly.
+   (Forest Bond)
+
+ * Implemented a new approach to source tree writes:
+
+    - Files can be opened for writing multiple times.  Management of concurrent
+      writes is pushed off to the source tree filesystem(s).
+    - Writes to the mount tree are immediately reflected.  Thus, both writers
+      and readers get the same view of the pytagsfs mount.  This allows us to
+      disable FUSE option direct_io.
+    - Writing to a virtual file does not cause that virtual path to disappear
+      until after the file has been closed.  If opened for writing multiple
+      times concurrently, the virtual path continues to exist until all writers
+      have closed the file.  New virtual paths may appear while the file is
+      still opened for writing since writes affect source files immediately.
+    - Truncating a virtal file does not affect the source file until the
+      virtual file is opened for writing.  Truncating a virtual file that is
+      already opened for writing affects the source file immediately.
+
+   (Forest Bond)
+
+ * mmap is now fully supported and write support is now enabled by default on
+   all platforms.  This can be done because FUSE option direct_io is no longer
+   used.
+   (Forest Bond)
+
+ * Dropped option --force-write-support.  This option is no longer necessary
+   since write support is enabled by default on all systems.
+   (Forest Bond)
+
+ * Fixed traceback on invalid mount option.
+   (Forest Bond)
+
+ * Fixed util/profile to only read portion of log written while running
+   benchmarks.  This problem was masked when direct_io was in use due to
+   fewer log entries caused by larger reads.
+   (Forest Bond)
+
+ * Fixed spurious logging of tracebacks due to normal filesystem errors.
+   (Forest Bond)
+
+ * Logging is now performed in the FUSE bindings layer (pytagsfs.fuse) instead
+   of using decorators in the filesystem layer (pytagsfs.fs).  This improves
+   performance and simplifies the code a bit.
+   (Forest Bond)
+
+ * Reduced performance impact of logging calls that do not actually produce an
+   log output due to current verbosity settings by passing values for
+   interpolation to the logging layer instead of pre-interpolating log
+   messages.
+   (Forest Bond)
+
+ * Fixed KeyError tracebacks (only visible with -o debug) on release of .log.
+   (Forest Bond)
+
+ * Added mail extension, a minor extension to pytagsfs to permit tagging of
+   mail messages in Maildir format.  This is currently invoked via new
+   executable ``pymailtagsfs``, but this may change in the future.  For
+   instance invocation may at some point be via ``pytagsfs -o extension=mail``.
+   Tags are stored in e-mail messages using header ``X-Pytagsfs-Tag``.
+   (Forest Bond)
+
+ * Fixed handling of ``X-Pytagsfs-Tag`` header contents to be compliant with
+   RFC 2822 (MIME encoded-word syntax).
+   (Forest Bond)
+
+ * Fixed pymailtagsfs mailbox accesses to correctly lock mailboxes while
+   modifying messages.
+   (Forest Bond)
+
+ * Fixed failing tests in ``tests.fs`` due to filesystem API change (argv
+   is no longer passed to the initializer).
+   (Forest Bond)
+
+ * Fixed poor error handling when trying to build manpages on a system missing
+   the docbook XSL stylesheets.  Thanks to "lunch".  Fixes #307950.
+   (Forest Bond)
+
+ * Modified setup.py to not install pymailtagsfs, as it is considered
+   experimental.  Users wishing to experiment with it can create a symlink
+   "pymailtagsfs" to existing script "pytagsfs".
+   (Forest Bond)
+
+ * Fixed bad truncation behavior on Mac OSX (and possibly other systems, too),
+   due to incorrect calls to libc's truncate (via ctypes).  Correctly casting
+   the length argument seems to fix this problem.
+   (Forest Bond)
+
+ * util/profile handles badly formatted log lines by reporting them to stderr.
+   This problem can be triggered if the log file overflows, resulting in read
+   discontinuity.
+   (Forest Bond)
+
+ * Fixed util/profile to not read the virtual log file while profiling.
+   Naturally, doing so massively inflates profiling numbers, and also causes
+   the log file to overflow.
+   (Forest Bond)
+
+ * Fixed -o profile to correctly report filesystem method names.  This was
+   broken in the transition from python-fuse to the ctypes-based fuse.py
+   binding.  All methods were being profile with name "wrapper".
+   (Forest Bond)
+
+ * Replaced ctypes-based FUSE bindings with a compatibility layer,
+   ``pytagsfs.fuselib``, on top of the standard python-fuse bindings.  The
+   decision to move away from ctypes was made to avoid platform compatibility
+   issues with types defined in system header files (which ctypes has no access
+   to).  The new compatibility layer provides a simpler API for filesystems
+   (like those implemented in ``pytagsfs.fs``) similar to that provided by
+   the ctypes-based bindings.
+   (Forest Bond)
+
+ * Implemented statfs.  This probably used to work, because Darwin appears to
+   depend on it being implemented for all operations.  It's not clear to me
+   why it would've worked in the past, but a complete implemention is now
+   provided.
+   (Forest Bond)
+
+ * Improved speed and reliability of blackbox tests by using sleep_until instead
+   of sleep.
+   (Forest Bond)
+
+ * Fixed -s (broken with introduction of ``pytagsfs.fuselib``).
+   (Forest Bond)
+
+
+pytagsfs 0.8.0 2008-10-21
+=========================
+
+ * Fixed out-of-date documentation of command-line options in pytags manual
+   page.
+   (Forest Bond)
+
+ * Fixed broken pytagsfs option -s.
+   (Forest Bond)
+
+
+pytagsfs 0.8.0rc1 2008-10-09
+============================
+
+ * Fixed hard-coded path to docbook stylesheet for building manpages in
+   setup.py.  Thanks to Zong Sharo.  Fixes #258362.
+   (Forest Bond)
+
+ * Fixed rather serious bug that would have prevented pytagsfs mounts from
+   working correctly when the mount point directory depth was smaller than
+   the virtual path directory depth (as defined by the format string).
+   (Forest Bond)
+
+ * Re-work ``PathStore`` interface:
+
+    - ``create_directory`` was renamed to ``add_directory``, and it is no
+      longer an optional method for sub-classes to implement.
+    - ``remove_file`` and ``remove_directory`` have been replaced with a single
+      method, ``remove``.
+    - ``rename_file`` and ``rename_directory`` have been replaced with a single
+      method, ``rename``.
+    - Method ``get_real_subpaths`` was added (actually it was added previously,
+      but the addition wasn't mentioned here).
+
+   Most users won't care about these changes.
+   (Forest Bond)
+
+ * Renames to paths containing too many levels of directories now fail with
+   EINVAL.
+   (Forest Bond)
+
+ * Re-implemented ``pytagsfs.subspat`` and re-worked ``pytagsfs.sourcetreerep``
+   to use the new API.  Fixes #259928.
+   (Forest Bond)
+
+ * Added ``PathStore`` meta-data methods: ``get_meta_data``, ``set_meta_data``,
+   ``unset_meta_data``.  These are currently being used by
+   ``SourceTreeRepresentation`` to store per-path ``Splitter`` objects.
+   (Forest Bond)
+
+ * Fixed some errors with getattr (stat):
+
+    - Instead of returning zero for atime, ctime, and mtime for empty
+      directories, return times as for the source tree root directory.
+    - st_dev was being read from the source tree root for empty directories, or
+      the source file for virtual files, but now is always set to zero.  This
+      is probably most correct given that our filesystem is virtual and those
+      parameters are consequently meaningless.
+
+   (Forest Bond)
+
+ * Fixed a bug in utime, which previously assumed that its argument was always
+   a file end point.  The new implementation updates the times on the source
+   tree root if the argument is an empty directory, or updates all contained
+   end points if the argument is a non-empty directory.
+   (Forest Bond)
+
+ * Files with tags containing slashes are not represented in the virtual
+   directory tree.  Log messages should indicate when this is the case.
+   Change your tags if you want to see them.  Fixes #267650.
+   (Forest Bond)
+
+ * PathStore implementations can now expect all paths to be specified as
+   unicode strings (previously, ASCII byte strings were allowed).
+   (Forest Bond)
+
+ * Tags with multiple values are now supported.  Files with multiple tag
+   values will appear under multiple directories.  Renames are supported.
+   (Forest Bond)
+
+ * pytags command-line options have changed:
+
+    - Option --pattern was renamed to --format to be consistent with pytagsfs
+      itself.
+    - Option --add was added.
+    - The order of options is now important.  --format must be specified first,
+      if at all.  --set, --add, and --remove are then process in order, with
+      each option affecting tags as it is processed.
+
+   (Forest Bond)
+
+ * Tags that mutagen does not treat as lists or tuples are ignored.  I'm
+   currently aware of some mp4 tags that are like this (cpil, pgap, pcst,
+   tmpo).  Other mp4 tags were already being handled specially to translate
+   to mp4-specific representations (tracknumber/trkn).
+   (Forest Bond)
+
+ * Renamed test module "integration" to "blackbox".
+   (Forest Bond)
+
+ * Simplified many blackbox tests, and removed some that primarily tested
+   functionality at a layer that is now being thoroughly unit tested.
+   (Forest Bond)
+
+ * Removed filesystem implementation of access method.  We use -o
+   default_permissions, anyway, so this method was probably not even being
+   called (and would return incorrect results for directories if it was).
+   (Forest Bond)
+
+ * Fixed buggy handling of mutagen track number tag leading to an attempt to
+   convert a list to an integer rather than converting each list member to
+   an integer.
+   (Forest Bond)
+
+ * Renamed long version of mutagen substitution pattern "N" from "NUMBER" to
+   "TRACKNUMBER" in order to be consistent with pair "n", "tracknumber".
+   (Forest Bond)
+
+ * Added mount option "-o nocache", which disables caching of stat results and
+   other virtual path properties.
+   (Forest Bond)
+
+ * Added mount option "-o profile".  This turns on some additional profiling
+   output in the log file.
+   (Forest Bond)
+
+ * Implemented util/profile, a utility that can analyze profiling information
+   in the log, as well as run standardized benchmarks.
+   (Forest Bond)
+
+ * In order to support benchmarking, a new meta store implementation was added:
+   ``TestLinesMetaStore``.  This meta store implementation should not be used
+   with real data files, as it has the potential to destory file data via
+   renames.  It is for testing and benchmarking only.
+   (Forest Bond)
+
+ * Added mount option "-o metastores", which allows the user to specify which
+   meta store implementation(s) to use.  This option is currently undocumented,
+   and was primarily introduced to support standardized benchmarking.  In the
+   future, though, it will likely be useful for mounting directories containing
+   non-media source files using alternative tag formats.
+   (Forest Bond)
+
+
+pytagsfs 0.7.1 2008-07-24
+=========================
+
+ * Fix filesystem dying with removal of last sub-directory of the root
+   directory.  PyTypesPathStore was undefining the root directory with the
+   removal of its last sub-directory.
+   (Forest Bond)
+
+ * Fix out-of-order handling of events for multiple paths when using
+   DeferredPyInotifySourceTreeMonitor, DeferredGaminSourceTreeMonitor, or
+   DeferredKqueueSourceTreeMonitor.  This bug might have caused the mount tree
+   to become out-of-sync with the source tree under some circumstances.
+   (Forest Bond)
+
+ * Fix duplicate directory removal events from GaminSourceTreeMonitor and
+   DeferredGaminSourceTreeMonitor.  This bug may have caused slight performance
+   and/or source tree/mount tree synchronization issues.
+   (Forest Bond)
+
+ * setup.py test command now accepts command-line option --print-only.  If
+   specified, test identifiers for tests that would have been run are printed
+   rather than being run.
+   (Forest Bond)
+
+ * Only call ``locale.getpreferredencoding`` once prior to thread
+   initialization, since this function is not thread-safe on some platforms.
+   (Forest Bond)
+
+ * Fixed a bug where renaming a directory in the source tree and subsequently
+   modifying tags on files contained by that directory resulted in "phantom"
+   files and directories under the mount point.  These files appear in
+   directory listings but no longer correspond to any existing source files.
+   Reading from them gives "No such file or directory" errors.
+   (Forest Bond)
+
+ * Fixed "No such file or directory" errors for ``getattr`` calls on virtual
+   directories whose sub-trees contain files corresponding with source files
+   that no longer exist.  Under normal operating conditions, this would be the
+   rare outcome of a race condition.
+   (Forest Bond)
+
+ * Fixed mishandling of nested directory removals by KqueueSourceTreeMonitor
+   and DeferredKqueueSourceTreeMonitor (the default source tree monitor on
+   Mac OSX and other BSDs).
+   (Forest Bond)
+
+
+pytagsfs 0.7.0 2008-06-03
+=========================
+
+ * Documentation updates.
+   (Forest Bond)
+
+
+pytagsfs 0.7.0rc1 2008-05-19
+============================
+
+ * Fix setup.py not installing sub-package specialfile.  This bug was
+   unreleased.
+   (Forest Bond)
+
+ * Handle conditional expressions in format strings better with respect to
+   renames.  Previously, renaming files such that a path component matches the
+   alternate content of a conditional expression resulted in that alternate
+   content being set as a tag value.  Now, the tag is removed, instead.  For
+   example, with format string '/%?%g%:Unknown Genre%?/%a/%t.%e', moving a file
+   into directory "Unknown Genre" will unset the genre tag for that file,
+   rather than setting the genre to "Unknown Genre".
+   (Forest Bond)
+
+ * Long keys are now supported in format strings.  For instance, "%{artist}" is
+   equivalent to "%a".  This can also be used to access arbitrary tags that have
+   no short key version (like "%{composer}").
+   (Forest Bond)
+
+ * Created an experimental implementation of KqueueSourceTreeMonitor with the
+   ultimate goal of achieving full Mac OSX compatibility.  More work must be
+   done before such support is complete.
+   (Forest Bond)
+
+ * Fixed Python 2.4 incompatibilities in test/integration.py.
+   (Forest Bond)
+
+ * Fixed broken kqueue support when not run in foreground mode (via -f/-d).
+   (Forest Bond)
+
+ * Fixed breakage in test/integration.py that would prevent test mounts from
+   being un-mounted correctly.
+   (Forest Bond)
+
+ * Fixed bad handling of boolean tag values.
+   (Forest Bond)
+
+ * Fixed incorrect handling of mount options uid, gid.
+   (Forest Bond)
+
+ * Set fstype to source directory path, subtype to "pytagsfs".  Previously,
+   fstype was set to "pytagsfs".  The new arrangement is more semantically
+   correct.
+   (Forest Bond)
+
+ * Fix kqueue handling of file replacements.
+   (Forest Bond)
+
+ * Fixed MacFUSE caching issues by passing mount option "nolocalcaches".
+   (Forest Bond)
+
+ * Fix renames on mounts with format string key redundancy (mounts that have
+   the same tag appear more than once in the format string).
+   (Forest Bond)
+
+ * Detect platform and inform user about potential mmap problems, if they
+   exist.  Require --force-write-support if appropriate.
+   (Forest Bond)
+
+ * Provide -o ro on Linux, -o rdonly on OSX and other BSD's.  Provide -r on all
+   systems.
+   (Forest Bond)
+
+ * Correctly handle errors from FUSE main function.  Thanks to Y Giridhar
+   Appaji Nag for submitting a patch.
+   (Forest Bond)
+
+ * Correctly handle moves of directories containing (directly or via sub-trees)
+   both empty directories as well as virtual files.
+   (Forest Bond)
+
+ * Try to handle MP4 keys in a useful way by translating from keys to those
+   used more commonly by other formats.  The keys seem to mostly have been
+   defined by iTunes, and are not well documented (nor are they very sane).
+   Variations in the field may cause problems here, but the iTunes-created
+   files that I have here appear to be handled correctly.
+   (Forest Bond)
+
+ * Integrate tests into setup.py.  Tests can now be run with
+   ``./setup.py test``.
+   (Forest Bond)
+
+ * Import the locale module from sclapp, rather than importing it directly.
+   This fixes some Unicode issues on Darwin.  sclapp version 0.5.2 is now
+   required.
+   (Forest Bond)
+
+ * Provide ``--tests`` option to setup.py test sub-command to enable specific
+   tests to be run, rather than always running the entire test suite.
+   (Forest Bond)
+
+ * Implement substitution parameter %{NUMBER}, a synonym for %N.
+   (Forest Bond)
+
+
+pytagsfs version 0.6.0 2008-04-04
+=================================
+
+ * Pretty-up log format a bit:
+
+    - Include time stamps.
+    - Use prettier description of function for "Entering x" and "Leaving x"
+      messages.
+
+   (Forest Bond)
+
+ * Rewrote command-line option parsing.  Options are now handled completely
+   independently from the underlying FUSE library.  The following options are
+   no longer supported:
+
+    - -o default_permissions
+    - -o fsname
+    - -o large_read
+    - -o max_read
+    - -o hard_remove
+    - -o use_ino
+    - -o readdir_ino
+    - -o direct_io
+    - -o kernel_cache
+    - -o umask
+    - -o entry_timeout
+    - -o negative_timeout
+    - -o attr_timeout
+
+   In general, the options for which support was removed are now considered
+   implementation details, as they should have been previously.
+   (Forest Bond)
+
+ * Fix incompatibility with python-fuse 0.2 by returning fuse.Stat instances
+   instead of os.stat_result instances from getattr, fgetattr.  This issue did
+   not exist with python-fuse 0.2pre3.  Previously, users of 0.2 would see
+   EINVAL from stat calls.  Reported by Chris Pickel, Jeremy Jones.
+   (Forest Bond)
+
+
+pytagsfs 0.6.0rc2 2008-03-26
+============================
+
+ * Improve performance for readdir by changing post-processing list of entries
+   in PyTypesPathStore.get_entries_for_directory to use new function last_unique
+   instead of unique.  Thanks to Chris Pickel.
+   (Forest Bond)
+
+ * Improve performance for readdir when debug logging is turned on by decorating
+   FileSystemMappingToRealFiles.readdir with @logged instead of
+   @verbosely_logged.
+   (Forest Bond)
+
+ * Cache directory entries.  This provides a significant performance
+   improvement for readdir calls after the first.
+   (Forest Bond)
+
+
+pytagsfs 0.6.0rc1 2008-03-24
+============================
+
+ * Keep order of directory entries the same across renames, collisions, etc.
+   Implementation happens to improve performance for source tree file updates,
+   as well.
+   (Forest Bond)
+
+ * Support simple renames of files under mount point.  Renaming virtual files
+   and directories causes the meta-data of the underlying source files to be
+   updated appropriately.  Files can be moved from one directory to another, or
+   files and directories can be renamed.
+   (Forest Bond)
+
+ * Fix bug preventing stat results from actually being cached.  This likely had
+   impact on performance of directory listings.
+   (Forest Bond)
+
+ * Fix TypeError from readdir due to poor handling in VirtualLogFile.
+   (Forest Bond)
+
+ * Fix cache not pruned due to rename.
+   (Forest Bond)
+
+ * Directory permissions now taken from source tree root directory (previously
+   arbitrary).
+   (Forest Bond)
+
+ * Fix broken directory mtime, ctime, atime.
+   (Forest Bond)
+
+ * Fix partial stat cache invalidation when full path branch should be
+   invalidated.  This would cause directory mtime, ctime, atime to not be
+   updated when it should.
+   (Forest Bond)
+
+ * Fix partial stat cache pruning in response to source file updates.
+   (Forest Bond)
+
+ * Support mkdir, rmdir.
+   (Forest Bond)
+
+ * Fix bad handling of updates to previously unrepresentable source files.
+   (Forest Bond)
+
+ * Fix rmdir not completely removing the target directory.  While the directory
+   was no longer returned by readdir on parent, stat still indicated its
+   presence.
+   (Forest Bond)
+
+
+pytagsfs 0.5.0 2008-03-08
+=========================
+
+ * pytagsfs is now compatible with Python 2.4.
+   (Forest Bond)
+
+
+pytagsfs 0.5.0rc2 2008-03-07
+============================
+
+ * Initial scanning of files was taking place after filesystem process detached
+   from the user's shell.  This causes the initial population delay to be
+   observed when the filesystem is first accessed, leading to confusion as to
+   whether the filesystem had hung.  Now, the files are scanned before the
+   process detaches.
+   (Forest Bond)
+
+ * Fixed log spamming after each open of log file (".log").
+   (Forest Bond)
+
+
+pytagsfs 0.5.0rc1 2008-03-06
+============================
+
+ * Added option -o verbosity=VERBOSITY; VERBOSITY should be one of debug, info,
+   warning, error, critical.  -d/-o debug overrides this, and forces verbosity
+   to debug.
+   (Forest Bond)
+
+ * With -d/-o debug, log to both .log and stderr.  Otherwise, log to .log only.
+   (Forest Bond)
+
+ * Limit size of in-memory log file (.log) to 1MB.
+   (Forest Bond)
+
+ * Allow size of in-memory log file to be overridden via -o logsize.
+   (Forest Bond)
+
+ * Fixed bug preventing addition of tags to previously untagged mp3 files.
+   (Forest Bond)
+
+ * Improved inotify performance for case where source files are updated
+   numerous times between event processing calls;
+   DeferredInotifySourceTreeMonitor.
+   (Forest Bond)
+
+ * Improved performance by only processing add, remove, and update events for
+   sources files after initialization (post populate) and prior to getattr
+   calls.
+   (Forest Bond)
+
+ * Fix bug causing reads on a recently truncated fd to return the removed
+   content by using direct_io = True for ReadWriteFile's.
+   (Forest Bond)
+
+ * Fix bug (sort of) where getattr calls for a file currently open for writing
+   return the size of the file before being opened.  Now, we defer to fgetattr
+   on the open file object.  This would cause, for instance, mutagen to badly
+   truncate OGG files.
+   (Forest Bond)
+
+ * Fix broken setup.py that forgets to install sub-packages.
+   (Forest Bond)
+
+ * Fix missing import log_traceback in pytagsfs.sourcetree.
+   (Forest Bond)
+
+ * Fix handling of transient conflicts.  Previously, when two or more source
+   files map to the same file name under the mount point, and one of those
+   source files was either removed or modified such that it mapped to a
+   different path, the mount path became a "dead" file, with zero links.  Now,
+   that path will become reassociated with the next source file candidate.
+   (Forest Bond)
+
+ * Fix pytags, pytagsfs always exiting with zero status, despite errors.
+   (Forest Bond)
+
+ * Log to stderr when option -f/-o foreground is specified.
+   (Forest Bond)
+
+ * Introduced fallback mechanism for source tree change monitoring backends.
+   Source tree monitors are tried in the following order: pyinotify, gamin,
+   dummy.
+
+    - pyinotify only works on Linux, but is faster than gamin.
+    - gamin possibly works on other Unix-like systems (like the BSD's).
+    - The dummy backend doesn't actually do anything, so changes to the source
+      tree are not reflected in the mount tree.
+
+   Non-Linux users should report success or failure with the gamin backend.
+
+   (Forest Bond)
+
+
+pytagsfs 0.3.0 2008-01-17
+=========================
+
+ * Added BUGS.
+   (Forest Bond)
+
+ * A virtual log file (".log") is created under the moint point.  The contents
+   of this file are stored in memory.  In the event of a (detected) bug,
+   tracebacks and other critical debugging data will be accessible by reading
+   this file.
+   (Forest Bond)
+
+ * If a file is truncated (directly, without being opened), the effects of this
+   are not immediately visible.  Reads will continue to return the file contents
+   prior to truncation.  However, if the file is opened in write-only or
+   read-write mode, the truncation will be apparent to the opener.  Once the
+   file is closed, reads will return the new content.  This makes it possible to
+   successfully re-tag files in such a way that the file path changes.
+   (Forest Bond)
+
+ * Write support is now considered reliable.
+   (Forest Bond)
+
+ * Removed support for the following filesystem functions, which were either
+   incorrect or irrelevant given currently supported features:
+
+   - readlink
+   - mknod
+   - mkdir
+   - unlink
+   - symlink
+   - rename
+   - link
+
+   (Forest Bond)
+
+ * Fixed incorrect stat results due to out of date cache values.  This also
+   corrects issue where writes would not show up in mounted tree.
+   (Forest Bond)
+
+ * Drastic performance improvement via stat() result caching.
+   (Forest Bond)
+
+ * Fixed bug in setup.py causing version information to be excluded from
+   generated .egg file.
+   (Forest Bond)
+
+
+pytagsfs 0.2.0 2007-12-15
+=========================
+
+ * Added NEWS file; sorry for the previous absence.
+   (Forest Bond)
+
+ * [NEWS file not present]
+
+
+pytagsfs 0.1.0 2007-12-06
+=========================
+
+ * [NEWS file not present]

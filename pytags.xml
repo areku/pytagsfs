@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN"
+ "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd" [
+  <!ENTITY pytags "<command>pytags</command>">
+]>
+
+<refentry>
+
+  <refentryinfo>
+    <author><firstname>Forest</firstname><surname>Bond</surname></author>
+    <address>forest@alittletooquiet.net</address>
+    <copyright>
+      <year>2007</year>
+      <year>2008</year>
+      <year>2009</year>
+    </copyright>
+    <date>2009-12-04</date>
+  </refentryinfo>
+
+  <refmeta>
+    <refentrytitle>pytags</refentrytitle>
+    <manvolnum>1</manvolnum>
+  </refmeta>
+
+  <refnamediv>
+    <refname>pytags</refname>
+    <refpurpose>
+      set and remove tags on media files from filename and options
+    </refpurpose>
+  </refnamediv>
+
+  <refsynopsisdiv>
+    <cmdsynopsis>
+      &pytags;
+      <group choice="opt">OPTIONS</group>
+      <arg choice="plain"><replaceable>file</replaceable></arg>
+      <arg choice="opt"><replaceable>file</replaceable>...</arg>
+    </cmdsynopsis>
+  </refsynopsisdiv>
+
+  <refsect1>
+    <title>Description</title>
+
+    <para>
+      &pytags; is a simple, general-purpose tool for setting and removing media
+      file tags.  With no options, &pytags; prints a tag summary for all files
+      specified on the command line.  Options can be used to set and remove tags
+      on files.
+    </para>
+
+    <para>
+      Using <option>--format</option>, it is easy to change or create tags on
+      by parsing metadata from filenames according to an arbitrary format
+      string.  This makes it simple to tag files that are consistently
+      named.
+    </para>
+
+    <para>
+      Additionally, tags can be manipulated directly with the
+      <option>--add</option>, <option>--set</option>, and
+      <option>--remove</option> options.  These options are processed in order,
+      so options specified later on the command-line may cause values set by
+      earlier options to be overwritten.  These options must appear after the
+      <option>--format</option>, if it is used.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Options</title>
+    <variablelist>
+      <varlistentry>
+        <term><option>--add</option>=EXPR</term>
+        <listitem><para>
+          Append a tag value all files according to EXPR.  EXPR should be an
+          expression like “artist=Foo”.  May be specified multiple times to add
+          multiple values.
+        </para></listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>--format</option>=FORMAT</term>
+        <listitem><para>
+          Tag files with metadata extrapolated from filenames using format
+          string FORMAT; see <xref linkend="refsect1_format_strings"/>.  This
+          option must be specified before <option>--add</option>,
+          <option>--set</option>, or <option>--remove</option>.
+        </para></listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>--set</option>=EXPR</term>
+        <listitem><para>
+          Set a single tag on all files according to EXPR.  EXPR should be an
+          expression like “artist=Foo”.  May be specified multiple times to set
+          multiple tags.  <option>--set</option> cannot be used to specify
+          multiple values for a single tag.  To do that, use
+          <option>--remove</option> followed by multiple <option>--add</option>
+          options.
+        </para></listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>--remove</option>=TAG</term>
+        <listitem><para>
+          Remove tags named TAG.  May be specified more than once to remove
+          multiple tags.
+        </para></listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-h</option>, <option>--help</option></term>
+        <listitem><para>Show summary of options and exit.</para></listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-v</option>, <option>--version</option></term>
+        <listitem><para>Show version of program and exit.</para></listitem>
+      </varlistentry>
+    </variablelist>
+  </refsect1>
+
+  <refsect1 id="refsect1_format_strings">
+    <title>Format Strings</title>
+
+    <para>
+      The format string expected by <option>--format</option> is the same as
+      that for <command>pytagsfs</command>.  See the <command>pytagsfs</command>
+      manual page for more information.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>Examples</title>
+
+    <para>
+      Remove the genre tag from all .ogg files in the current directory.
+    </para>
+    <screen>$ pytags --remove genre *.ogg</screen>
+
+    <para>
+      Set the artist and album tag on all .mp3 files, and remove the genre tag.
+    </para>
+    <screen>$ pytags --set artist=Foo --set album=Bar --remove genre *.mp3</screen>
+
+    <para>
+      Tag all of the .flac files in the current directory.  All such files are
+      assumed to be in the format "tracknum artist - trackname [album].flac".
+    </para>
+    <screen>$ pytags --format '%n %a - %t [%l].flac' *.flac</screen>
+  </refsect1>
+
+  <refsect1>
+    <title>Bugs</title>
+    <para>
+      Please report bugs on launchpad at
+      http://launchpad.net/products/pytagsfs/+bugs.
+    </para>
+
+    <para>
+      pytags relies on mutagen (the underlying Python tags library)
+      to choose an appropriate tag format for the files being tagged.  This
+      cannot currently be overridden.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>See Also</title>
+    <para>
+      <citerefentry>
+        <refentrytitle>pytagsfs</refentrytitle>
+        <manvolnum>1</manvolnum>
+      </citerefentry>
+    </para>
+  </refsect1>
+
+</refentry>

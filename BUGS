@@ -1,0 +1,7 @@
+Please report bugs here:
+
+https://bugs.launchpad.net/pytagsfs/+filebug
+
+When you see a bug, copy the file named ".log" under the pytagsfs mount point
+*before* unmounting the filesystem.  This file will contain information
+critical for debugging.

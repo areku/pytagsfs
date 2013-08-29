@@ -1,0 +1,124 @@
+#!/usr/bin/env python
+
+# Copyright (c) 2007-2008 Forest Bond.
+# This file is part of the pytagsfs software package.
+#
+# pytagsfs is free software; you can redistribute it and/or modify it under the
+# terms of the GNU General Public License version 2 as published by the Free
+# Software Foundation.
+#
+# A copy of the license has been included in the COPYING file.
+
+import sys, os, stat, time, optparse, signal
+
+from sclapp import main_function
+
+from pytagsfs.sourcetreemon import (
+  get_source_tree_monitor,
+  SOURCE_TREE_MONITORS,
+)
+
+from pytagsfs.exceptions import MissingDependency
+
+def add_source_dir(stm, path):
+    stm.add_source_dir(path)
+
+    try:
+        names = os.listdir(path)
+    except (OSError, IOError):
+        return
+
+    for name in names:
+        sub_path = os.path.join(path, name)
+        stm.add_cb(sub_path)
+
+def make_add_cb(stm):
+    def add_cb(path, is_dir = None):
+        print 'ADD', path, is_dir
+
+        if is_dir is None:
+            add_source_dir(stm, path)
+            stm.add_source_file(path)
+        elif is_dir:
+            add_source_dir(stm, path)
+        else:
+            stm.add_source_file(path)
+    return add_cb
+
+def make_remove_cb(stm):
+    def remove_cb(path, is_dir = None):
+        print 'REMOVE', path, is_dir
+
+        if is_dir is None:
+            stm.remove_source_dir(path)
+            stm.remove_source_file(path)
+        elif is_dir:
+            stm.remove_source_dir(path)
+        else:
+            stm.remove_source_file(path)
+    return remove_cb
+
+def make_update_cb(stm):
+    def update_cb(path, is_dir = None):
+        print 'UPDATE', path, is_dir
+    return update_cb
+
+def choose_source_tree_monitor(stm_dotted_name = None):
+    if stm_dotted_name is not None:
+        candidates = [stm_dotted_name]
+    else:
+        candidates = SOURCE_TREE_MONITORS
+
+    for candidate in candidates:
+        try:
+            stm = get_source_tree_monitor(candidate)
+        except MissingDependency, e:
+            print >>sys.stderr, (
+              'source tree monitor %s unsupported '
+              'due to missing dependency %s'
+            ) % (candidate, str(e))
+        else:
+            print >>sys.stderr, 'using source tree monitor %s' % candidate
+            return stm
+
+    raise AssertionError('unable to find a usable source tree monitor')
+
+def handle_argv(argv):
+    parser = optparse.OptionParser(usage = '%prog [OPTIONS] {directory}')
+    parser.add_option(
+      '--source-tree-monitor',
+      default = None,
+      help = 'use SOURCE_TREE_MONITOR as source tree monitor class',
+    )
+    opts, args = parser.parse_args(argv[1:])
+
+    stm_dotted_name = opts.source_tree_monitor
+    stm = choose_source_tree_monitor(stm_dotted_name)
+
+    dir_name = os.path.abspath(args[0])
+
+    return stm, dir_name
+
+@main_function(
+  exit_signals = [signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGPIPE],
+)
+def main(argv):
+    stm, dir_name = handle_argv(argv)
+
+    stm.set_add_cb(make_add_cb(stm))
+    stm.set_remove_cb(make_remove_cb(stm))
+    stm.set_update_cb(make_update_cb(stm))
+
+    stm.start()
+
+    add_source_dir(stm, dir_name)
+
+    try:
+        while True:
+            stm.process_events()
+            time.sleep(0.1)
+    finally:
+        stm.stop()
+
+if __name__ == '__main__':
+    sys.exit(main())

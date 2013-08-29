@@ -1,0 +1,374 @@
+#!/usr/bin/env python
+
+# Copyright (c) 2007-2009 Forest Bond.
+# This file is part of the pytagsfs software package.
+#
+# pytagsfs is free software; you can redistribute it and/or modify it under the
+# terms of the GNU General Public License version 2 as published by the Free
+# Software Foundation.
+#
+# A copy of the license has been included in the COPYING file.
+
+import os, sys, time, uuid, subprocess
+from optparse import OptionParser
+
+from pytagsfs.fs import UMOUNT_COMMAND
+
+
+project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+python_executable = sys.executable
+pytagsfs_executable = os.path.join(project_dir, 'pytagsfs')
+
+PROF = 'PROF '
+
+
+def parse_pytagsfs_output(output):
+    result = {}
+
+    for line in output.split('\n'):
+        if 'PROF' not in line:
+            continue
+
+        try:
+            line = line[line.index(PROF) + len(PROF):]
+            parts = line.split(' ')
+            duration = int(parts[0])
+            operation = parts[1]
+        except (TypeError, ValueError), e:
+            print >>sys.stderr, repr(e)
+            print >>sys.stderr, 'Invalid line: %s' % repr(line)
+
+        if operation not in result:
+            result[operation] = {'ncalls': 0, 'cumtime': 0}
+        result[operation]['ncalls'] += 1
+        result[operation]['cumtime'] += duration
+
+    for operation in result:
+        result[operation]['percall'] = (
+          float(result[operation]['cumtime']) / float(result[operation]['ncalls'])
+        )
+
+    return result
+
+
+def print_profile_result(result):
+    print 'ncalls\tcumtime\tpercall\toperation'
+    for operation, stats in result.items():
+        d = dict(stats)
+        d['operation'] = operation
+        print '%(ncalls)u\t%(cumtime)u\t%(percall).3f\t%(operation)s' % d
+
+
+def quote_arg(arg):
+    return "'%s'" % arg.replace("'", r"'\''")
+
+
+def unique_id():
+    return str(uuid.uuid1())
+
+
+def iter_permutations(choice_groups, prefix = None):
+    try:
+        first_choice_group = choice_groups[0]
+    except IndexError:
+        yield prefix
+        return
+    for choice in first_choice_group:
+        if prefix is None:
+            new_prefix = [choice]
+        else:
+            new_prefix = list(prefix)
+            new_prefix.append(choice)
+        for permutation in iter_permutations(
+          choice_groups[1:], prefix = new_prefix):
+            yield permutation
+
+
+def iter_choice_groups(depth, breadth):
+    for x in range(depth):
+        choice_group = []
+        for y in range(breadth):
+            choice_group.append(unique_id())
+        yield choice_group
+
+
+def create_source_file(source_dir, permutation, blksize, nblocks):
+    filename = os.path.join(source_dir, unique_id())
+    f = open(filename, 'w')
+    try:
+        try:
+            f.write('\n'.join(permutation))
+            f.write('\n')
+            data = blksize * '\0'
+            for i in range(nblocks):
+                f.write(data)
+        finally:
+            f.close()
+    except Exception:
+        os.unlink(filename)
+        raise
+    return filename
+
+
+def build_source_tree(source_dir, depth, breadth, blocksize, nblocks):
+    choice_groups = list(iter_choice_groups(depth, breadth))
+    permutations = list(iter_permutations(choice_groups))
+    filenames = []
+
+    os.mkdir(source_dir)
+    try:
+        try:
+            for permutation in permutations:
+                filenames.append(create_source_file(
+                  source_dir,
+                  permutation,
+                  blocksize,
+                  nblocks,
+                ))
+        except:
+            for filename in filenames:
+                os.unlink(filename)
+            raise
+    except:
+        os.rmdir(source_dir)
+        raise
+
+    return filenames
+
+
+def make_format(depth):
+    parts = []
+    for x in range(depth):
+        parts.append('%%%s' % (chr(ord('a') + x)))
+    return '/%s' % '/'.join(parts)
+
+
+def remove_source_tree(source_dir, filenames):
+    for filename in filenames:
+        os.unlink(filename)
+    os.rmdir(source_dir)
+
+
+def mount(options, source_dir, mount_point):
+    parts = [
+      python_executable,
+      pytagsfs_executable,
+      '-o',
+      options,
+      source_dir,
+      mount_point,
+    ]
+    cmdline = ' '.join([quote_arg(part) for part in parts])
+    os.system(cmdline)
+
+
+def umount(mount_point):
+    for retry in range(5):
+        time.sleep(2)
+        if os.system(UMOUNT_COMMAND % quote_arg(mount_point)) == 0:
+            break
+
+
+def run_benchmark(
+  benchmark,
+  mount_point,
+  source_dir,
+  mount_options,
+  reps,
+  depth,
+  breadth,
+  blocksize,
+  nblocks,
+):
+    # logsize must be large enough to hold all of the profiling messages.
+    # Otherwise, we'll get jumbled messages as a result of the log data being
+    # shifted back to make room for new data.  If log file parsing fails, that
+    # is probably the cause (but it could also indicate bad concurrent writes
+    # to the log buffer).
+    options = ','.join([
+      'profile',
+      'metastores=pytagsfs.metastore.testlines.TestLinesMetaStore',
+      'format=%s' % make_format(depth),
+      'logsize=%u' % (10 * 1024 * 1024),
+    ])
+    if mount_options is not None:
+        options = ','.join([options, mount_options])
+
+    if reps is None:
+        reps = benchmark.reps
+
+    print '=== %s: %u reps' % (benchmark.__name__, reps)
+
+    rep_times = []
+
+    os.mkdir(mount_point)
+    try:
+        filenames = build_source_tree(
+          source_dir,
+          depth,
+          breadth,
+          blocksize,
+          nblocks,
+        )
+        try:
+            mount(options, source_dir, mount_point)
+            try:
+                benchmark_start_time = time.time()
+                for rep in range(reps):
+                    rep_start_time = time.time()
+                    benchmark(mount_point, source_dir)
+                    rep_end_time = time.time()
+                    rep_times.append(
+                      1000 * (rep_end_time - rep_start_time)
+                    )
+                benchmark_end_time = time.time()
+                benchmark_time = (
+                  1000 * (benchmark_end_time - benchmark_start_time)
+                )
+                stat_result = os.stat(os.path.join(mount_point, '.log'))
+
+                f = open(os.path.join(mount_point, '.log'))
+                try:
+                    output = f.read(stat_result.st_size)
+                finally:
+                    f.close()
+
+            finally:
+                umount(mount_point)
+        finally:
+            remove_source_tree(source_dir, filenames)
+    finally:
+        os.rmdir(mount_point)
+
+    print ''
+    print_profile_result(parse_pytagsfs_output(output))
+    print ''
+    print 'benchmark: %.2f' % benchmark_time
+    print 'average rep: %.2f' % (sum(rep_times) / len(rep_times))
+    print 'slowest rep: %.2f' % max(rep_times)
+    print 'fastest rep: %.2f' % min(rep_times)
+    print ''
+    print ''
+
+
+def benchmark_stat_mount_point(mount_point, source_dir):
+    os.stat(mount_point)
+
+benchmark_stat_mount_point.reps = 1000
+
+
+def benchmark_listdir_mount_point(mount_point, source_dir):
+    os.listdir(mount_point)
+
+benchmark_listdir_mount_point.reps = 1000
+
+
+def benchmark_find(mount_point, source_dir):
+    os.system('find %s >/dev/null' % quote_arg(mount_point))
+
+benchmark_find.reps = 10
+
+
+def benchmark_read_all(mount_point, source_dir):
+    os.system(
+      "find %s -type f ! -name '.log' -exec cat '{}' \; >/dev/null"
+      % quote_arg(mount_point)
+    )
+
+benchmark_read_all.reps = 10
+
+
+def benchmark_read_all_concurrent(mount_point, source_dir):
+    paths = []
+    for dirpath, dirnames, filenames in os.walk(mount_point):
+        for filename in filenames:
+            if filename != '.log':
+                paths.append(os.path.join(dirpath, filename))
+    popens = []
+    dev_null = open('/dev/null', 'w')
+    try:
+        for path in paths:
+            popen = subprocess.Popen(
+              ['cat', path],
+              stdout = dev_null,
+            )
+            popens.append(popen)
+    finally:
+        dev_null.close()
+    for popen in popens:
+        popen.wait()
+
+benchmark_read_all_concurrent.reps = 10
+
+
+BENCHMARKS = [
+  benchmark_stat_mount_point,
+  benchmark_listdir_mount_point,
+  benchmark_find,
+  benchmark_read_all,
+  benchmark_read_all_concurrent,
+]
+
+
+def main(argv = None):
+    if argv is None:
+        argv = sys.argv
+
+    parser = OptionParser()
+    parser.add_option('--benchmark', action = 'store_true', default = False)
+    parser.add_option('--parse', action = 'store_true', default = False)
+    parser.add_option('--list-benchmarks', action = 'store_true', default = False)
+
+    parser.add_option('--mount-point', default = 'mnt')
+    parser.add_option('--source-dir', default = 'src')
+    parser.add_option('--mount-options', default = None)
+    parser.add_option('--reps', type = 'int', default = None)
+    parser.add_option('--depth', type = 'int', default = 2)
+    parser.add_option('--breadth', type = 'int', default = 10)
+    parser.add_option('--blocksize', type = 'int', default = 1024)
+    parser.add_option('--nblocks', type = 'int', default = 200)
+
+    opts, args = parser.parse_args(argv[1:])
+
+    if not any([opts.benchmark, opts.parse, opts.list_benchmarks]):
+        parser.error('must specify one of --benchmark, --parse, --list-benchmarks')
+
+    if opts.benchmark:
+        if len(args) == 0:
+            benchmarks = BENCHMARKS
+        else:
+            benchmarks = []
+            for arg in args:
+                found = False
+                for benchmark in BENCHMARKS:
+                    if benchmark.__name__ == arg:
+                        benchmarks.append(benchmark)
+                        found = True
+                        break
+                if not found:
+                    parser.error('no such benchmark: %s' % arg)
+        for benchmark in benchmarks:
+            run_benchmark(
+              benchmark,
+              opts.mount_point,
+              opts.source_dir,
+              mount_options = opts.mount_options,
+              reps = opts.reps,
+              depth = opts.depth,
+              breadth = opts.breadth,
+              blocksize = opts.blocksize,
+              nblocks = opts.nblocks,
+            )
+
+    elif opts.parse:
+        print_profile_result(parse_pytagsfs_output(sys.stdin.read()))
+
+    elif opts.list_benchmarks:
+        print '\n'.join([bm.__name__ for bm in BENCHMARKS])
+
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

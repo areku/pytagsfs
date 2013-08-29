@@ -1,0 +1,44 @@
+Bugs
+====
+
+ * Right now, collisions are handled such that the most recently added file
+   overrides previously added files.  I'm not sure that this is correct.
+ * Some tests fail intermittently because gamin doesn't seem to maintain the
+   order of certain events (removing nested directories, for instance).  It's
+   not really a big deal because very few people likely use gamin with pytagsfs
+   (since we support inotify and kqueue, either of which is generally
+   preferred over gamin), and pytagsfs has provisions to work around the
+   incorrect behavior (cofirm this).
+
+
+Enhancements
+============
+
+ * Reduce startup time.  One way to do this is to implement PathStore
+   persistence across sessions with verification and updating of persisted data
+   at mount time.
+ * Improve performance of most filesystem operations.
+ * It should be possible for write support to work with the dummy source tree
+   monitor.
+ * Allow source tree monitors to be specified on the command-line by nick-name
+   ("dummy"), instead of class name.
+ * Implement source tree monitor based on python-fam?
+ * Add more special files:
+    - .collisions: lists virtual paths that collide and the source files they
+      corespond with.
+    - .missing: lists source paths that are not representable as virtual files.
+ * Should verbosity=debug include library debug messages (normally sent to
+   stderr)?
+ * Re-examine format string conditional expression syntax.  I've received
+   complaints that the %?foo%:bar%? syntax is overly verbose and awkward.  This
+   is probably true, but it also prevents nested conditionals, which is nice.
+ * Warn user of performance penalty associated -d/-o debug?
+
+
+Testing
+=======
+
+ * Test dummy source tree monitor.
+ * Test -o uid, -o gid.
+ * Test -r, -o ro, -o rdonly.
+ * Test pytags utility.

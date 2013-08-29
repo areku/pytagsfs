@@ -1,0 +1,443 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//EN"
+ "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd" [
+  <!ENTITY pytagsfs "<command>pytagsfs</command>">
+]>
+
+<refentry>
+
+  <refentryinfo>
+    <author><firstname>Forest</firstname><surname>Bond</surname></author>
+    <address>forest@alittletooquiet.net</address>
+    <copyright>
+      <year>2007</year>
+      <year>2008</year>
+      <year>2009</year>
+    </copyright>
+    <date>2009-12-14</date>
+  </refentryinfo>
+
+  <refmeta>
+    <refentrytitle>pytagsfs</refentrytitle>
+    <manvolnum>1</manvolnum>
+  </refmeta>
+
+  <refnamediv>
+    <refname>pytagsfs</refname>
+    <refpurpose>
+      filesystem mapping media files to an arbitrary directory structure
+    </refpurpose>
+  </refnamediv>
+
+  <refsynopsisdiv>
+    <cmdsynopsis>
+      &pytagsfs;
+      <group choice="opt">OPTIONS</group>
+      <arg choice="req"><replaceable>sourcedir</replaceable></arg>
+      <arg choice="req"><replaceable>mountpoint</replaceable></arg>
+    </cmdsynopsis>
+  </refsynopsisdiv>
+
+  <refsect1>
+    <title>Description</title>
+    <para>
+      pytagsfs is a FUSE filesystem that was designed to present multiple views
+      of tagged media files.  For instance, a directory tree containing audio
+      files could be mapped to a new directory structure organizing those same
+      files by album, genre, release date, etc.
+    </para>
+    <para>
+      To get a feel for what's possible, see
+      <xref linkend="refsect1_examples"/>.
+    </para>
+    <para>
+      Log messages are kept in a limited-size ring buffer in memory, and can be
+      read from the virtual file named ".log", under the mount point root.
+    </para>
+  </refsect1>
+
+  <refsect1>
+
+    <title>Options</title>
+
+    <variablelist>
+      <varlistentry>
+        <term><option>--version</option></term>
+        <listitem><para>show version of program and exit</para></listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-h</option>, <option>--help</option></term>
+        <listitem><para>show summary of options and exit</para></listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-f</option></term>
+        <listitem><para>foreground operation</para></listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-d</option></term>
+        <listitem><para>enable debug output (implies -f)</para></listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-s</option></term>
+        <listitem><para>disable multi-threaded operation</para></listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-r</option></term>
+        <listitem><para>mount read-only</para></listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-o</option> opt[,opt...]</term>
+        <listitem><para>mount options</para></listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-o</option> format=FORMAT</term>
+        <listitem>
+          <para>
+            format string for destination paths
+            (see <xref linkend="refsect1_format_strings"/>)
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-o</option> srcfilter=EXPR</term>
+        <listitem>
+          <para>
+            adds a source path filter; may be specified more than once
+            (see <xref linkend="refsect1_path_filters"/>)
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-o</option> dstfilter=EXPR</term>
+        <listitem>
+          <para>
+            adds a destination path filter; may be specified more than once
+            (see <xref linkend="refsect1_path_filters"/>)
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-o</option> iocharset=ENCODING</term>
+        <listitem>
+          <para>mounted tree character encoding (default utf-8)</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-o</option> source_iocharset=ENCODING</term>
+        <listitem>
+          <para>source directory character encoding (default utf-8)</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-o</option> ro</term>
+        <listitem>
+          <para>synonym for -r (Linux)</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-o</option> rdonly</term>
+        <listitem>
+          <para>synonym for -r (Darwin, FreeBSD, NetBSD, OpenBSD)</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-o</option> allow_other</term>
+        <listitem><para>allow access to other users</para></listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-o</option> allow_root</term>
+        <listitem><para>allow access to root</para></listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-o</option> nonempty</term>
+        <listitem><para>allow mounts over non-empty file/dir</para></listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-o</option> uid=UID</term>
+        <listitem><para>set file owner</para></listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-o</option> gid=GID</term>
+        <listitem><para>set file group</para></listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-o</option> verbosity=VERBOSITY</term>
+        <listitem>
+          <para>
+            log level; must be one of "debug", "info", "warning", "error",
+            "critical"; defaults to "warning"
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-o</option> logsize=LOGSIZE</term>
+        <listitem>
+          <para>length of log file ring buffer</para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-o</option> debug</term>
+        <listitem><para>synonym for -d</para></listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>-o</option> force_write_support</term>
+        <listitem><para>
+          Force write support on systems that are not known to have correct
+          mmap semantics.  This option is dangerous and can lead to file
+          corruption with some applications on some systems!
+        </para></listitem>
+      </varlistentry>
+    </variablelist>
+
+  </refsect1>
+
+  <refsect1 id="refsect1_format_strings">
+
+    <title>Format Strings</title>
+
+    <para>
+      A format string must be specified for each pytagsfs mount.  The format
+      string specifies the structure of the virtual filesystem mount by defining
+      a template for virtual paths.  For instance, the following format string
+      defines a virtual filesystem layout that organizes media files by artist, 
+      then by album, and, finally, by track name:
+    </para>
+
+    <screen>/%{artist}/%{album}/%{track}.%{extension}</screen>
+
+    <refsect2>
+
+      <title>Substitutions</title>
+
+      <para>
+        The format string should contain zero or more substitution sequences.
+        Each such sequence begins with a percent sign (%).
+      </para>
+
+      <para>
+        Substitution sequences may be specified in either long or short forms.
+        Long-form substitution sequences are written as "%{KEY}", where KEY
+        corresponds with a meta-data key.  The set of available keys varies
+        from file to file, however, many media files feature some or all of
+        the following long keys:
+      </para>
+
+      <simplelist>
+        <member><constant>filename</constant>  name of the original file</member>
+        <member><constant>parent</constant>  name of the original file's parent directory</member>
+        <member><constant>extension</constant>  extension of the original file</member>
+        <member><constant>tracknumber</constant>  track number; concise (like 7)</member>
+        <member><constant>TRACKNUMBER</constant>  track number; two digits with leading zeros (like 07)</member>
+        <member><constant>artist</constant>  artist</member>
+        <member><constant>composer</constant> composer</member>
+        <member><constant>title</constant>  track title</member>
+        <member><constant>album</constant>  album title</member>
+        <member><constant>year</constant>  year of release</member>
+        <member><constant>genre</constant>  genre</member>
+      </simplelist>
+
+      <para>
+        Short-form substitution sequences are written as "%X".  Each such
+        sequence is an abbreviation for a long-form sequence, as indicated
+        below:
+      </para>
+
+      <simplelist>
+        <member><constant>f</constant>  filename</member>
+        <member><constant>p</constant>  parent</member>
+        <member><constant>e</constant>  extension</member>
+        <member><constant>n</constant>  number</member>
+        <member><constant>N</constant>  NUMBER</member>
+        <member><constant>a</constant>  artist</member>
+        <member><constant>c</constant>  composer</member>
+        <member><constant>t</constant>  title</member>
+        <member><constant>l</constant>  album</member>
+        <member><constant>y</constant>  year</member>
+        <member><constant>g</constant>  genre</member>
+      </simplelist>
+
+    </refsect2>
+
+    <refsect2>
+
+      <title>Modifiers</title>
+
+      <para>
+        Format strings can be further extended to perform string translations on
+        parameters prior to substitution.  Such translations are indicated by
+        the inclusion of a modifier character after the percent sign.  For
+        instance, "%^a" indicates an all-caps version of the artist name, as
+        does "%^{artist}".
+      </para>
+
+      <para>
+        The full list of modifier characters follows:
+      </para>
+
+      <simplelist>
+        <member><constant>^</constant>  UPPERCASE</member>
+        <member><constant>_</constant>  lowercase</member>
+        <member><constant>!</constant>  Title Case</member>
+      </simplelist>
+
+    </refsect2>
+
+    <refsect2>
+
+      <title>Conditional Expressions</title>
+
+      <para>
+        Normally, any file for which a parameter required by the format string
+        cannot be determined is implicitly excluded from the resulting
+        filesystem.  Conditionals can be used to express that these files should
+        be included, but that those portions of the format string that cannot be
+        rendered should be omitted or replaced.
+      </para>
+
+      <para>
+        Two types of conditional expressions may be used: "if" expressions and
+        "if-else" expressions.  The contents of an "if" expression are omitted
+        unless all parameters within that expressions can be successfully
+        evaluated.  An "if-else" expression is similar, except that, if the
+        expression does not evaluate, an alternative will be used instead.  Use
+        the following syntax:
+      </para>
+
+      <simplelist>
+        <member>%?<replaceable>expr</replaceable>%?</member>
+        <member>%?<replaceable>expr</replaceable>%:<replaceable>alt</replaceable>%?</member>
+      </simplelist>
+
+    </refsect2>
+
+  </refsect1>
+
+  <refsect1 id="refsect1_path_filters">
+
+    <title>Path Filters</title>
+
+    <para>
+      Path filters can be used to limit the set of files presented by the
+      filesystem using regular expressions.  Files are filtered by source path
+      or by destination path, inclusively (limiting the set of paths to those
+      that match the regular expression) or exclusively (limiting the set of
+      paths to those that do <emphasis>not</emphasis> match the regular
+      expression).
+    </para>
+    <para>
+      Use the mount options <option>srcfilter</option> and
+      <option>dstfilter</option> to filter by source path and destination path,
+      respectively.  Filters are inclusive unless the filter parameter starts
+      with an exclamation point, in which case the regular expression is assumed
+      to be the part of the parameter following the exclamation point.
+    </para>
+    <para>
+      Multiple filters of any kind may be used, and are applied in the order
+      that they are specified on the command line.  See
+      <xref linkend="refsect1_examples"/> for some sample filters.
+    </para>
+
+  </refsect1>
+
+  <refsect1 id="refsect1_examples">
+    <title>Examples</title>
+
+    <para>
+      View media files in <filename>src</filename>, with original filenames in a
+      flat directory structure:
+    </para>
+    <screen>$ pytagsfs -o format='/%f' src mnt</screen>
+
+    <para>
+      View media files in <filename>src</filename> by album on
+      <filename>mnt</filename>:
+    </para>
+    <screen>$ pytagsfs -o format='/%a/%f' src mnt</screen>
+
+    <para>
+      A more complex album-based view:
+    </para>
+    <screen>$ pytagsfs -o format='/%a - %l/%N %a - %t [%l].%e'</screen>
+
+    <para>
+      This is like above, but filters the result.  I use this to display my
+      files by album, but exclude compilations (which I've tagged to include a
+      hyphen in the album name, like "various - album"):
+    </para>
+    <screen>$ pytagsfs -o \
+  format='/%a - %l/%N %a - %t [%l].%e',\
+  dstfilter='!^/[^/]* - [^/]* - [^/]*/' \
+  src albums</screen>
+
+    <para>
+      I use this to display the compilations:
+    </para>
+    <screen>$ pytagsfs -o \
+  format='/%l/%N %a - %t [%l].%e',\
+  dstfilter='^/[^/]* - [^/]*/' \
+  src compilations</screen>
+
+    <para>
+      Maybe you only want to see files that start with "a" and end in ".mp3"?
+    </para>
+    <screen>$ pytagsfs -o \
+  format='/%f',dstfilter='^/a',dstfilter='\.mp3$' \
+  src mnt</screen>
+  </refsect1>
+
+  <refsect1>
+    <title>Unmounting</title>
+    <para>
+      To unmount the filesystem on Linux use
+      <citerefentry>
+        <refentrytitle>fusermount</refentrytitle>
+        <manvolnum>1</manvolnum>
+      </citerefentry>:
+    </para>
+    <screen>
+$ fusermount -u mnt
+    </screen>
+    <para>
+      To unmount the filesystem on OS X or *BSD use
+      <citerefentry>
+        <refentrytitle>umount</refentrytitle>
+        <manvolnum>1</manvolnum>
+      </citerefentry>:
+    </para>
+    <screen>
+$ umount mnt
+    </screen>
+  </refsect1>
+
+  <refsect1>
+    <title>Bugs</title>
+    <para>
+      Please report bugs on launchpad at
+      http://launchpad.net/products/pytagsfs/+bugs.
+    </para>
+  </refsect1>
+
+  <refsect1>
+    <title>See Also</title>
+    <para>
+      <citerefentry>
+        <refentrytitle>fusermount</refentrytitle>
+        <manvolnum>1</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>mount</refentrytitle>
+        <manvolnum>8</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>umount</refentrytitle>
+        <manvolnum>8</manvolnum>
+      </citerefentry>,
+      <citerefentry>
+        <refentrytitle>pytags</refentrytitle>
+        <manvolnum>1</manvolnum>
+      </citerefentry>
+    </para>
+  </refsect1>
+
+</refentry>
